@@ -122,18 +122,28 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Data files
+# Data files - exclude by default, but include essential files for replication
 data/
-*.csv
-*.xlsx
-*.xls
+!data/FEDFUNDS.csv
+!data/ie_data_only.csv
+!data/TB3MS_fallback.csv
+# Exclude large raw data files
+data/ie_data.xls
+data/ie_data_only.xlsx
+data/TB3MS.csv
+
+# Other data formats
 *.json
 *.parquet
 *.pkl
 *.pickle
 
-# Results and outputs
+# Results and outputs - exclude by default, but include processed data
 results/
+!results/shiller_data_processed.csv
+# Exclude individual backtest results (can be regenerated)
+results/investor_backtest_*.csv
+
 output/
 outputs/
 *.png
