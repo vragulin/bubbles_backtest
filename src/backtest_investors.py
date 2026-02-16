@@ -209,7 +209,7 @@ class InvestorBacktest:
         # t=start_idx in full_df corresponds to t=0 in wealth arrays
         equity_allocation[0] = self._calculate_allocation(config, full_df, start_idx, wealth[0])
         
-        equity_shares[0] = equity_allocation[0] * wealth[0] / full_df['SPX'].iloc[start_idx]
+        equity_shares[0] = equity_allocation[0] * wealth[0] / full_df['SPX_TR'].iloc[start_idx]
         
         # Simulate forward period by period
         for t in range(1, n_backtest):
@@ -219,10 +219,10 @@ class InvestorBacktest:
             
             prev_wealth = wealth[t-1]
             prev_shares = equity_shares[t-1]
-            prev_price = full_df['SPX'].iloc[df_idx_prev]
-            curr_price = full_df['SPX'].iloc[df_idx]
+            prev_price = full_df['SPX_TR'].iloc[df_idx_prev]
+            curr_price = full_df['SPX_TR'].iloc[df_idx]
             
-            # Calculate wealth from price changes and bond returns
+            # Calculate wealth from total return (price + dividends) and bond returns
             stock_value = prev_shares * curr_price
             bond_value = (prev_wealth - prev_shares * prev_price) * (1 + full_df['Bond_Return'].iloc[df_idx])
             
