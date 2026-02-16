@@ -13,7 +13,32 @@ from typing import Dict
 
 @dataclass
 class InvestorConfig:
-    """Configuration for each investor type"""
+    """Configuration for each investor type
+    
+    Parameters:
+        name: Strategy identifier (e.g., 'cashflow', 'extrap', 'momentum')
+        baseline: Base equity allocation (0.0 to 1.0)
+        lookback_years: Historical window for momentum/mean reversion strategies
+        deviation: Allocation adjustment magnitude for tactical strategies
+        crra: Coefficient of relative risk aversion (for Merton allocation)
+        stock_vol_assumed: Assumed annual stock volatility (default 16%)
+        momentum_weight: Weight on momentum signal in valmo strategy
+        rp_max: Maximum risk premium deviation for valmo (relative to baseline)
+        use_cape: If True, uses CAPE yield (10-year smoothed); if False, uses trailing earnings yield.
+                  CAPE yield is more stable and less cyclical than trailing earnings.
+                  Default is True (recommended for long-term strategies).
+        use_lagged_earnings: If True, uses earnings from prior period scaled by CPI growth.
+                             This is more realistic since current earnings are not available in real-time.
+                             Default is True (recommended for realistic backtesting).
+        earnings_lag_months: Number of months to lag earnings data (default 1).
+                             Earnings at time T are assumed to be from T-lag, scaled by CPI growth.
+        extrap_weights: Lookback weights for extrapolator (5 years)
+        extrap_center: Target expected return for extrapolator squeeze
+        extrap_max_dev: Maximum deviation from center for extrapolator
+        extrap_squeeze: Squeeze function parameter for extrapolator
+        stmr_lookback_months: Lookback window for short-term mean reversion
+        numb_sigmas_max_dev: Maximum deviation threshold for STMR (in sigmas)
+    """
     name: str
     baseline: float  # baseline equity allocation
     lookback_years: float = 0.0  # for momentum/mean reversion strategies
@@ -24,6 +49,9 @@ class InvestorConfig:
     stock_vol_assumed: float = 0.16
     momentum_weight: float = 0.0  # for valmo
     rp_max: float = 0.0  # for valmo
+    use_cape: bool = True  # use CAPE yield instead of trailing earnings yield
+    use_lagged_earnings: bool = True  # use lagged earnings scaled by CPI (more realistic)
+    earnings_lag_months: int = 1  # how many months to lag earnings data
     
     # Extrap-specific
     extrap_weights: tuple = (0.30, 0.25, 0.20, 0.15, 0.10)
@@ -90,6 +118,10 @@ class InvestorBacktest:
         # Forward fill earnings to handle NaN values
         self.df['E'] = self.df['E'].ffill()
         self.df['Earnings_Yield'] = self.df['E'] / self.df['SPX']
+        
+        # Calculate CAPE yield (inverse of CAPE ratio)
+        # CAPE is Cyclically Adjusted P/E using 10-year average real earnings
+        self.df['CAPE_Yield'] = 1.0 / self.df['CAPE']
         
         # Real rate: RF rate minus inflation for Merton allocation
         # Approximate inflation as 12-month CPI change
@@ -221,6 +253,57 @@ class InvestorBacktest:
             'stats': stats
         }
     
+    def _get_earnings_yield(self, config: InvestorConfig, df: pd.DataFrame, t: int) -> float:
+        """Get earnings yield, optionally lagged and scaled by CPI growth
+        
+        Args:
+            config: Investor configuration
+            df: DataFrame with market data
+            t: Current time index
+            
+        Returns:
+            Earnings yield (or CAPE yield) for allocation calculation, or None if invalid
+        """
+        yield_col = 'CAPE_Yield' if config.use_cape else 'Earnings_Yield'
+        
+        if config.use_lagged_earnings and t >= config.earnings_lag_months:
+            # Use lagged earnings scaled by CPI growth to approximate current earnings
+            lag = config.earnings_lag_months
+            
+            if config.use_cape:
+                # For CAPE yield: scale the yield by inverse CPI growth
+                # CAPE_Yield[t] ≈ CAPE_Yield[t-lag] × (CPI[t-lag] / CPI[t])
+                lagged_yield = df[yield_col].iloc[t - lag]
+                cpi_t = df['CPI'].iloc[t]
+                cpi_lagged = df['CPI'].iloc[t - lag]
+                if not pd.isna(cpi_t) and not pd.isna(cpi_lagged) and cpi_t > 0:
+                    ey = lagged_yield * (cpi_lagged / cpi_t)
+                else:
+                    ey = lagged_yield
+            else:
+                # For trailing earnings: scale earnings by CPI growth rate
+                # E[t] ≈ E[t-lag] × (CPI[t] / CPI[t-lag])
+                lagged_earnings = df['E'].iloc[t - lag]
+                current_price = df['SPX'].iloc[t]
+                cpi_t = df['CPI'].iloc[t]
+                cpi_lagged = df['CPI'].iloc[t - lag]
+                if not pd.isna(cpi_t) and not pd.isna(cpi_lagged) and cpi_lagged > 0:
+                    scaled_earnings = lagged_earnings * (cpi_t / cpi_lagged)
+                    ey = scaled_earnings / current_price
+                else:
+                    ey = lagged_earnings / current_price
+        else:
+            # Use current period earnings (unrealistic but for comparison)
+            ey = df[yield_col].iloc[t]
+        
+        # Fallback to historical average if NaN or non-positive
+        if pd.isna(ey) or ey <= 0:
+            ey = df[yield_col].iloc[:t].mean()
+            if pd.isna(ey) or ey <= 0:
+                return None
+        
+        return ey
+    
     def _calculate_allocation(self, config: InvestorConfig, df: pd.DataFrame,
                              t: int, wealth: float) -> float:
         """Calculate equity allocation for current period based on strategy"""
@@ -230,12 +313,11 @@ class InvestorBacktest:
         
         elif config.name == 'cashflow':
             # Earnings yield based allocation (Merton)
-            ey = df['Earnings_Yield'].iloc[t]
-            if pd.isna(ey) or ey <= 0:
-                # Use historical average if current is NaN
-                ey = df['Earnings_Yield'].iloc[:t].mean()
-                if pd.isna(ey) or ey <= 0:
-                    return config.baseline
+            # Use CAPE yield (10-year smoothed) or trailing earnings yield
+            # Optionally lag earnings by 1 month scaled by CPI (more realistic)
+            ey = self._get_earnings_yield(config, df, t)
+            if ey is None:
+                return config.baseline
             
             real_rate = df['Real_Rate'].iloc[t]
             if pd.isna(real_rate):
@@ -360,12 +442,11 @@ class InvestorBacktest:
             momentum_frac = -config.momentum_weight * config.baseline
         
         # Value component (earnings yield)
-        ey = df['Earnings_Yield'].iloc[t]
-        if pd.isna(ey) or ey <= 0:
-            # Use historical average if current is NaN
-            ey = df['Earnings_Yield'].iloc[:t].mean()
-            if pd.isna(ey) or ey <= 0:
-                return config.baseline
+        # Use CAPE yield (10-year smoothed) or trailing earnings yield
+        # Optionally lag earnings by 1 month scaled by CPI (more realistic)
+        ey = self._get_earnings_yield(config, df, t)
+        if ey is None:
+            return config.baseline
         
         real_rate = df['Real_Rate'].iloc[t]
         if pd.isna(real_rate):
@@ -430,8 +511,7 @@ class InvestorBacktest:
             'sharpe_ratio': sharpe,
             'avg_equity_allocation': avg_equity,
             'max_drawdown': max_drawdown,
-            'final_wealth': wealth[-1],
-            'wealth_multiple': wealth[-1] / wealth[0]
+            'final_wealth': wealth[-1]
         }
 
 
@@ -549,8 +629,7 @@ def run_backtest_comparison(start_date=None, end_date=None):
             'Sharpe Ratio': f"{stats['sharpe_ratio']:.3f}",
             'Avg Equity %': f"{stats['avg_equity_allocation']:.1%}",
             'Max Drawdown': f"{stats['max_drawdown']:.2%}",
-            'Final Wealth': f"${stats['final_wealth']:.2f}",
-            'Wealth Multiple': f"{stats['wealth_multiple']:.2f}x"
+            'Final Wealth': f"${stats['final_wealth']:.2f}"
         })
     
     summary_df = pd.DataFrame(summary_data)

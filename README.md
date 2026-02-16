@@ -34,6 +34,8 @@ The script backtests six investor strategies on historical S&P 500 data:
 - Uses actual historical S&P 500 prices and earnings from the Shiller dataset
 - Implements actual 10-year Treasury bond returns for portfolio allocation
 - Uses Federal Funds rate for Sharpe ratio calculations and Merton allocations
+- **Uses CAPE (Cyclically Adjusted P/E) yield by default** for smoother, less cyclical valuations
+- **Uses lagged earnings by default** (1-month lag scaled by CPI growth) for realistic backtesting
 - Includes 5 years of lookback data before backtest start for proper initialization
 - Calculates performance metrics: CAGR, volatility, Sharpe ratio, max drawdown
 
@@ -50,6 +52,38 @@ from src.backtest_investors import run_backtest_comparison
 
 # Backtest from 1986 to 2026
 results = run_backtest_comparison(start_date='1986-02-01', end_date='2026-02-01')
+```
+
+**Using trailing earnings yield instead of CAPE**:
+```python
+from src.backtest_investors import InvestorBacktest, InvestorConfig
+
+# Create config with trailing earnings yield
+config = InvestorConfig(
+    name='cashflow',
+    baseline=0.5,
+    use_cape=False,  # Use trailing 12-month earnings instead of 10-year CAPE
+    crra=3.0,
+    stock_vol_assumed=0.16
+)
+
+backtest = InvestorBacktest()
+result = backtest.backtest_strategy(config, start_date='1986-02-01', end_date='2026-02-01')
+```
+
+**Using current period earnings (unrealistic, no lag)**:
+```python
+# Most realistic: use_lagged_earnings=True (default)
+# For comparison with perfect foresight: use_lagged_earnings=False
+
+config = InvestorConfig(
+    name='cashflow',
+    baseline=0.5,
+    use_cape=True,
+    use_lagged_earnings=False,  # Use current period earnings (lookahead bias)
+    crra=3.0,
+    stock_vol_assumed=0.16
+)
 ```
 
 **Output**: 
@@ -130,8 +164,45 @@ Unlike the multi-agent simulation in `who_killed_rw.py`, this backtest:
 2. **No equilibrium price formation** - Markets determine prices, not agent demand/supply clearing
 3. **Actual bond returns** - Uses 10-year Treasury total returns instead of risk-free rate
 4. **Historical initialization** - Strategies start with actual 5-year lookback data, not simulated history
+5. **CAPE yield by default** - Uses 10-year smoothed real earnings (less cyclical than trailing earnings)
+6. **Lagged earnings** - Realistic 1-month earnings lag to avoid lookahead bias (earnings not available in real-time)
 
-This approach allows us to evaluate whether the insights from the theoretical model hold up when tested against real market behavior.
+### CAPE vs Trailing Earnings Yield
+
+The backtest uses **CAPE (Cyclically Adjusted P/E) yield** by default for value-based strategies:
+
+- **CAPE Yield** = 1 / CAPE ratio = Average Real Earnings (10-year) / Current Price
+  - Smooths out earnings cyclicality
+  - More stable signal during recessions/booms
+  - Recommended by Shiller for long-term valuation
+
+- **Trailing Earnings Yield** = Current Earnings / Current Price
+  - Uses most recent 12-month earnings
+  - More responsive to current conditions
+  - Can be distorted by temporary earnings shocks
+
+You can switch to trailing earnings by setting `use_cape=False` in investor configurations.
+
+### Lagged Earnings for Realism
+
+By default, the backtest uses **lagged earnings** to avoid lookahead bias:
+
+- **Problem**: In real-time, current period earnings are not yet available when making allocation decisions
+- **Solution**: Use earnings from prior period (T-1), scaled by CPI growth to approximate T
+
+**How it works:**
+```
+# For CAPE yield:
+CAPE_Yield[T] ≈ CAPE_Yield[T-1] × (CPI[T-1] / CPI[T])
+
+# For trailing earnings yield:
+Earnings_Yield[T] ≈ (Earnings[T-1] × CPI[T] / CPI[T-1]) / Price[T]
+```
+
+**Impact on results:**
+- Lagged earnings produces more realistic (slightly lower) returns than using contemporaneous earnings
+- The default 1-month lag represents typical earnings reporting delays
+- You can disable this with `use_lagged_earnings=False` to see the difference
 
 ## Results Interpretation
 
