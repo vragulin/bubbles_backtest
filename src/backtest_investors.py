@@ -614,9 +614,9 @@ def run_backtest_comparison(start_date=None, end_date=None):
         results[name] = result
     
     # Display results
-    print(f"\n{'─'*80}")
+    print(f"\n{'-'*80}")
     print(f"PERFORMANCE SUMMARY")
-    print(f"{'─'*80}\n")
+    print(f"{'-'*80}\n")
     
     # Create summary DataFrame
     summary_data = []
