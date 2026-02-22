@@ -175,12 +175,17 @@ def main() -> None:
         us_r = us_r.loc[us_r != 0.0]
         xus_r = xus_r.loc[xus_r != 0.0]
 
-    plot_lo, plot_hi = -0.03, 0.03
+    plot_simple_lo, plot_simple_hi = -0.03, 0.03
+    plot_lo, plot_hi = float(np.log1p(plot_simple_lo)), float(np.log1p(plot_simple_hi))
     bins = np.linspace(plot_lo, plot_hi, int(args.bins) + 1)
 
-    sim_r_plot = sim_r.loc[(sim_r >= plot_lo) & (sim_r <= plot_hi)]
-    us_r_plot = us_r.loc[(us_r >= plot_lo) & (us_r <= plot_hi)]
-    xus_r_plot = xus_r.loc[(xus_r >= plot_lo) & (xus_r <= plot_hi)]
+    sim_r_plot = sim_r.loc[(sim_r >= plot_simple_lo) & (sim_r <= plot_simple_hi)]
+    us_r_plot = us_r.loc[(us_r >= plot_simple_lo) & (us_r <= plot_simple_hi)]
+    xus_r_plot = xus_r.loc[(xus_r >= plot_simple_lo) & (xus_r <= plot_simple_hi)]
+
+    sim_x_plot = np.log1p(sim_r_plot.to_numpy(dtype=float))
+    us_x_plot = np.log1p(us_r_plot.to_numpy(dtype=float))
+    xus_x_plot = np.log1p(xus_r_plot.to_numpy(dtype=float))
 
     sim_ppy = 240
     hist_ppy = 252
@@ -229,13 +234,13 @@ def main() -> None:
     legend_fs = 13
 
     plt.figure(figsize=(12, 7))
-    plt.hist(sim_r_plot, bins=bins, density=True, alpha=0.45, color=c_sim, label="_nolegend_")
-    plt.hist(us_r_plot, bins=bins, density=True, alpha=0.45, color=c_us, label="_nolegend_")
-    plt.hist(xus_r_plot, bins=bins, density=True, alpha=0.45, color=c_xus, label="_nolegend_")
+    plt.hist(sim_x_plot, bins=bins, density=True, alpha=0.45, color=c_sim, label="_nolegend_")
+    plt.hist(us_x_plot, bins=bins, density=True, alpha=0.45, color=c_us, label="_nolegend_")
+    plt.hist(xus_x_plot, bins=bins, density=True, alpha=0.45, color=c_xus, label="_nolegend_")
 
     if args.kde:
-        def _kde_values(data: pd.Series, x_grid: np.ndarray) -> np.ndarray:
-            arr = np.asarray(data.dropna().to_numpy(dtype=float))
+        def _kde_values(data: np.ndarray, x_grid: np.ndarray) -> np.ndarray:
+            arr = np.asarray(data, dtype=float)
             arr = arr[np.isfinite(arr)]
             if arr.size == 0:
                 return np.full_like(x_grid, np.nan, dtype=float)
@@ -272,7 +277,7 @@ def main() -> None:
         x_grid = np.linspace(plot_lo, plot_hi, 800)
         plt.plot(
             x_grid,
-            _kde_values(sim_r_plot, x_grid),
+            _kde_values(sim_x_plot, x_grid),
             color=darken(c_sim),
             linewidth=2.0,
             linestyle=ls_sim,
@@ -280,7 +285,7 @@ def main() -> None:
         )
         plt.plot(
             x_grid,
-            _kde_values(us_r_plot, x_grid),
+            _kde_values(us_x_plot, x_grid),
             color=darken(c_us),
             linewidth=2.0,
             linestyle=ls_us,
@@ -288,7 +293,7 @@ def main() -> None:
         )
         plt.plot(
             x_grid,
-            _kde_values(xus_r_plot, x_grid),
+            _kde_values(xus_x_plot, x_grid),
             color=darken(c_xus),
             linewidth=2.0,
             linestyle=ls_xus,
@@ -298,10 +303,10 @@ def main() -> None:
     ax = plt.gca()
 
     plt.title(
-        "Daily Total Return Distributions: Simulation vs. Actual US and Non-US (XUS) Stocks",
+        "Daily Total Log Return Distributions: Simulation vs. Actual US and Non-US (XUS) Stocks",
         fontsize=title_fs,
     )
-    plt.xlabel("Daily Return (simple)", fontsize=label_fs)
+    plt.xlabel("Daily log return, log(1+r)", fontsize=label_fs)
     plt.ylabel("Density", fontsize=label_fs)
 
     if args.kde:
