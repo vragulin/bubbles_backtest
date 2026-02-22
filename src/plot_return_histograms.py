@@ -184,12 +184,19 @@ def main() -> None:
 
     sim_ppy = 240
     hist_ppy = 252
-    sim_mean_ann = _annualized_moments_from_returns(sim_r, periods_per_year=sim_ppy, use_log_returns=True)["mean_ann"]
-    us_mean_ann = _annualized_moments_from_returns(us_r, periods_per_year=hist_ppy, use_log_returns=True)["mean_ann"]
-    xus_mean_ann = _annualized_moments_from_returns(xus_r, periods_per_year=hist_ppy, use_log_returns=True)["mean_ann"]
-    sim_ann_ret = float(np.expm1(sim_mean_ann))
-    us_ann_ret = float(np.expm1(us_mean_ann))
-    xus_ann_ret = float(np.expm1(xus_mean_ann))
+    # Keep legend consistent with the printed table below.
+    # Both should report the *annualized mean of log(1+r)* (a continuously-compounded mean).
+    # Converting via expm1(...) produces a slightly higher simple-return number and will not
+    # match the table, so we do NOT apply expm1 here.
+    sim_ann_mean = float(
+        _annualized_moments_from_returns(sim_r, periods_per_year=sim_ppy, use_log_returns=True)["mean_ann"]
+    )
+    us_ann_mean = float(
+        _annualized_moments_from_returns(us_r, periods_per_year=hist_ppy, use_log_returns=True)["mean_ann"]
+    )
+    xus_ann_mean = float(
+        _annualized_moments_from_returns(xus_r, periods_per_year=hist_ppy, use_log_returns=True)["mean_ann"]
+    )
 
     try:
         import matplotlib.pyplot as plt
@@ -311,9 +318,9 @@ def main() -> None:
         ]
 
     labels = [
-        f"Simulation (ann. ret. = {sim_ann_ret * 100:.1f}%)",
-        f"US (ann. ret. = {us_ann_ret * 100:.1f}%)",
-        f"XUS (ann. ret. = {xus_ann_ret * 100:.1f}%)",
+        f"Simulation (ann. mean log ret. = {sim_ann_mean * 100:.1f}%)",
+        f"US (ann. mean log ret. = {us_ann_mean * 100:.1f}%)",
+        f"XUS (ann. mean log ret. = {xus_ann_mean * 100:.1f}%)",
     ]
     plt.legend(handles, labels, fontsize=legend_fs)
     plt.grid(True, alpha=0.2)
