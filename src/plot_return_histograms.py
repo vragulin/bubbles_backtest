@@ -145,6 +145,14 @@ def main() -> None:
         action="store_true",
         help="Overlay a fitted density line (KDE) on top of each histogram",
     )
+    parser.add_argument(
+        "--tails-to-edge",
+        action="store_true",
+        help=(
+            "Instead of dropping returns outside the plotted x-axis range, clip them to the "
+            "nearest boundary so they are counted in the edge histogram bins"
+        ),
+    )
     args = parser.parse_args()
 
     sim_path = Path(args.sim)
@@ -175,13 +183,21 @@ def main() -> None:
         us_r = us_r.loc[us_r != 0.0]
         xus_r = xus_r.loc[xus_r != 0.0]
 
-    plot_simple_lo, plot_simple_hi = -0.03, 0.03
+    plot_simple_lo, plot_simple_hi = -0.05, 0.05
     plot_lo, plot_hi = float(np.log1p(plot_simple_lo)), float(np.log1p(plot_simple_hi))
     bins = np.linspace(plot_lo, plot_hi, int(args.bins) + 1)
 
-    sim_r_plot = sim_r.loc[(sim_r >= plot_simple_lo) & (sim_r <= plot_simple_hi)]
-    us_r_plot = us_r.loc[(us_r >= plot_simple_lo) & (us_r <= plot_simple_hi)]
-    xus_r_plot = xus_r.loc[(xus_r >= plot_simple_lo) & (xus_r <= plot_simple_hi)]
+    if args.tails_to_edge:
+        # Clip in simple-return space, then transform to log(1+r) for plotting.
+        # This assigns all out-of-range observations to the edge histogram bins.
+        sim_r_plot = pd.Series(np.clip(sim_r.to_numpy(dtype=float), plot_simple_lo, plot_simple_hi))
+        us_r_plot = pd.Series(np.clip(us_r.to_numpy(dtype=float), plot_simple_lo, plot_simple_hi))
+        xus_r_plot = pd.Series(np.clip(xus_r.to_numpy(dtype=float), plot_simple_lo, plot_simple_hi))
+    else:
+        # Drop observations outside the plotted x-axis range.
+        sim_r_plot = sim_r.loc[(sim_r >= plot_simple_lo) & (sim_r <= plot_simple_hi)]
+        us_r_plot = us_r.loc[(us_r >= plot_simple_lo) & (us_r <= plot_simple_hi)]
+        xus_r_plot = xus_r.loc[(xus_r >= plot_simple_lo) & (xus_r <= plot_simple_hi)]
 
     sim_x_plot = np.log1p(sim_r_plot.to_numpy(dtype=float))
     us_x_plot = np.log1p(us_r_plot.to_numpy(dtype=float))

@@ -76,7 +76,11 @@ python src/plot_return_histograms.py \
   --kde
 ```
 
-This also writes distribution-moment stats to `results/return_distribution_stats.csv`.
+Notes:
+
+- The plotted variable is the daily total **log return** `log(1+r)`.
+- This also writes distribution-moment stats to `results/return_distribution_stats.csv` (computed on `log(1+r)` increments).
+- Optional: add `--tails-to-edge` to clip out-of-range observations into the edge histogram bins (instead of dropping them).
 
 ## Appendix (supporting scripts)
 
