@@ -16,7 +16,7 @@ trivially).
 
 Example
 -------
-python src/who_killed_rw_dist.py --n-sims 200 --out results/rw_daily_tr_returns.csv
+python src/who_killed_rw_dist.py --n-sims 50 --out results/rw_daily_tr_returns.csv
 """
 
 from __future__ import annotations
