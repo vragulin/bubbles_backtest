@@ -199,6 +199,20 @@ CAPE_Yield[T] ≈ CAPE_Yield[T-1] × (CPI[T-1] / CPI[T])
 Earnings_Yield[T] ≈ (Earnings[T-1] × CPI[T] / CPI[T-1]) / Price[T]
 ```
 
+## Simplified ELM Daily Backtest: `backtest_elm.py`
+
+The repository also includes a simplified daily backtest engine that allocates
+between an equity TRI and a T-bill TRI using stylized “ELM-style” rules.
+
+- Script: `src/backtest_elm.py`
+- Notes / structure overview: `docs/backtest_elm_structure.md`
+
+**Run**:
+```bash
+python src/backtest_elm.py --region US
+python src/backtest_elm.py --region XUS
+```
+
 **Impact on results:**
 - Lagged earnings produces more realistic (slightly lower) returns than using contemporaneous earnings
 - The default 1-month lag represents typical earnings reporting delays

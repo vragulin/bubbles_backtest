@@ -114,6 +114,13 @@ class InvestorBacktest:
         # Calculate returns
         self.df['Price_Return'] = self.df['SPX'].pct_change()
         self.df['TR_Return'] = self.df['SPX_TR'].pct_change()
+
+        # Real total return index for signal generation (CPI-deflated).
+        # Many allocation rules are specified in real terms.
+        if 'SPX_TR_Real' in self.df.columns:
+            self.df['SPX_TR_REAL_IDX'] = self.df['SPX_TR_Real']
+        else:
+            self.df['SPX_TR_REAL_IDX'] = self.df['SPX_TR'] / self.df['CPI']
         
         # Forward fill earnings to handle NaN values
         self.df['E'] = self.df['E'].ffill()
@@ -357,11 +364,12 @@ class InvestorBacktest:
         # Calculate weighted average return over past 5 consecutive annual periods
         # Each weight applies to a separate 1-year period (not overlapping cumulative returns)
         avg_ret = 0.0
+        tr_real = df['SPX_TR_REAL_IDX']
         for i, w in enumerate(weights):
             year_end = t - 12 * i  # End of this year's period
             year_start = t - 12 * (i + 1)  # Start of this year's period
             if year_start >= 0:
-                ret = np.log(df['SPX_TR'].iloc[year_end] / df['SPX_TR'].iloc[year_start])
+                ret = np.log(tr_real.iloc[year_end] / tr_real.iloc[year_start])
                 avg_ret += w * ret
         
         # Squeeze around center
@@ -384,7 +392,8 @@ class InvestorBacktest:
             return config.baseline
         
         # Period return over lookback
-        return_period = df['SPX_TR'].iloc[t] / df['SPX_TR'].iloc[t - lookback] - 1
+        tr_real = df['SPX_TR_REAL_IDX']
+        return_period = tr_real.iloc[t] / tr_real.iloc[t - lookback] - 1
         
         # Expected return using historical earnings yield as fixed benchmark
         # (calculated from pre-backtest period)
@@ -415,7 +424,8 @@ class InvestorBacktest:
             return config.baseline
         
         # 1-year return
-        ret_annual = df['SPX_TR'].iloc[t] / df['SPX_TR'].iloc[t - lookback] - 1
+        tr_real = df['SPX_TR_REAL_IDX']
+        ret_annual = tr_real.iloc[t] / tr_real.iloc[t - lookback] - 1
         
         # Compare to historical earnings yield as fixed benchmark
         # (calculated from pre-backtest period)
@@ -435,7 +445,8 @@ class InvestorBacktest:
             return config.baseline
         
         # Momentum component
-        tr_change = df['SPX_TR'].iloc[t] - df['SPX_TR'].iloc[t - lookback]
+        tr_real = df['SPX_TR_REAL_IDX']
+        tr_change = tr_real.iloc[t] - tr_real.iloc[t - lookback]
         if tr_change > 0:
             momentum_frac = config.momentum_weight * config.baseline
         else:
@@ -499,7 +510,9 @@ class InvestorBacktest:
         avg_equity = np.mean(equity_allocation)
         
         # Maximum drawdown
-        cumulative = np.cumprod(1 + wealth_returns)
+        # Seed with initial wealth index so early losses register as drawdowns
+        wealth_index = np.concatenate(([1.0], 1 + wealth_returns))
+        cumulative = np.cumprod(wealth_index)
         running_max = np.maximum.accumulate(cumulative)
         drawdown = (cumulative - running_max) / running_max
         max_drawdown = np.min(drawdown) if len(drawdown) > 0 else 0.0
@@ -654,4 +667,4 @@ def run_backtest_comparison(start_date=None, end_date=None):
 if __name__ == '__main__':
     # Run backtest comparison
     # Default: last 40 years of data
-    results = run_backtest_comparison(start_date='1986-02-01', end_date='2026-02-01')
+    results = run_backtest_comparison(start_date='1997-01-01', end_date='2026-02-01')

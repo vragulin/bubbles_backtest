@@ -1563,7 +1563,18 @@ show equity allocations, yield/rate dynamics, and a dual-axis price/earnings vie
 # @title
 # Plotting functions for simulation results.
 
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:  # allow using the simulation without plotting deps
+    plt = None
+
+
+def _require_matplotlib() -> None:
+    if plt is None:
+        raise ModuleNotFoundError(
+            "matplotlib is required for plotting. Install it (e.g. `pip install matplotlib`) "
+            "or run the simulation/export scripts that don't call plotting functions."
+        )
 
 
 def plot_price_paths(
@@ -1572,6 +1583,7 @@ def plot_price_paths(
     max_paths: int = 20,
 ):
     """Plot stock price paths from multiple simulations."""
+    _require_matplotlib()
     ppy = params.periods_per_year
     plt.figure(figsize=(12, 7))
     n = min(max_paths, len(all_results))
@@ -1594,6 +1606,7 @@ def plot_earnings_yields(
     max_paths: int = 20,
 ):
     """Plot earnings yield paths from multiple simulations."""
+    _require_matplotlib()
     ppy = params.periods_per_year
     plt.figure(figsize=(12, 7))
     n = min(max_paths, len(all_results))
@@ -1622,6 +1635,7 @@ def plot_first_simulation(
     2. Earnings yield, risk premium, and real interest rate
     3. Stock price index (left) and earnings (right)
     """
+    _require_matplotlib()
     ppy = params.periods_per_year
     n = len(market.price)
     time_years = np.arange(n) / ppy
@@ -1700,26 +1714,28 @@ Execute 50 simulations with default parameters, display averaged statistics with
 standard errors.
 """
 
-# @title
-# Monte Carlo: run multiple simulations, display averaged statistics, and plot paths.
-mc_params = SimulationParams()
-avg_stats, all_stats, all_results = run_monte_carlo(mc_params, n_sims=50, base_seed=42)
+def _run_default_monte_carlo() -> None:
+    """Run the default Monte Carlo + plots.
 
-# Use the investors dict from the first sim for column detection (anticip presence)
-_, first_investors = all_results[0]
-display_statistics(avg_stats, first_investors, title=f"Monte Carlo Averaged (N={len(all_stats)})", show_se=True)
+    Kept behind an `if __name__ == '__main__'` guard so this module is safe to
+    import from other scripts.
+    """
+    mc_params = SimulationParams()
+    avg_stats, all_stats, all_results = run_monte_carlo(mc_params, n_sims=50, base_seed=42)
 
-"""## Plots
-Plot price paths, earnings yields, and detailed first-simulation
-charts.
-"""
+    # Use the investors dict from the first sim for column detection (anticip presence)
+    _, first_investors = all_results[0]
+    display_statistics(avg_stats, first_investors, title=f"Monte Carlo Averaged (N={len(all_stats)})", show_se=True)
 
-# @title
-# Plot paths from first N simulations
-plot_price_paths(all_results, mc_params, max_paths=20)
-plot_earnings_yields(all_results, mc_params, max_paths=20)
+    # Plots: price paths, earnings yields, and a detailed first-simulation view
+    plot_price_paths(all_results, mc_params, max_paths=20)
+    plot_earnings_yields(all_results, mc_params, max_paths=20)
 
-# Plot detailed charts from first simulation
-first_market, first_investors = all_results[0]
-plot_first_simulation(first_market, first_investors, mc_params)
+    # Plot detailed charts from first simulation
+    first_market, first_investors = all_results[0]
+    plot_first_simulation(first_market, first_investors, mc_params)
+
+
+if __name__ == '__main__':
+    _run_default_monte_carlo()
 
