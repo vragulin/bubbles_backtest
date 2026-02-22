@@ -3,7 +3,7 @@
 This repo’s **primary deliverables** are:
 
 1) A simplified daily “ELM-style” allocation backtest: `src/backtest_elm.py`
-2) A script to plot simulated-vs-real daily return histograms (with optional KDE overlays): `tests/plot_return_histograms.py`
+2) A script to plot simulated-vs-real daily return histograms (with optional KDE overlays): `src/plot_return_histograms.py`
 
 Everything else in the repository should be considered as **drafts/supporting material**.
 
@@ -69,7 +69,7 @@ python src/who_killed_rw_dist.py --n-sims 200 --out results/rw_daily_tr_returns.
 ### Step B — plot histograms + KDE
 
 ```bash
-python tests/plot_return_histograms.py \
+python src/plot_return_histograms.py \
   --sim results/rw_daily_tr_returns.csv \
   --hist data/hist_df.csv \
   --out results/return_histograms.png \

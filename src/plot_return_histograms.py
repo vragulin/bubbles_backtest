@@ -12,10 +12,11 @@ Outputs
 
 Usage
 -----
-python tests/plot_return_histograms.py \
+python src/plot_return_histograms.py \
   --sim results/rw_daily_tr_returns.csv \
   --hist data/hist_df.csv \
-  --out results/return_histograms.png
+  --out results/return_histograms.png \
+  --kde
 
 Notes
 -----
@@ -56,7 +57,6 @@ def _detect_true_daily_start(
     frac = nonzero.rolling(window=window, min_periods=window).mean()
     ok = frac >= float(min_nonzero_frac)
     if not bool(ok.any()):
-        # Fall back: if we can't detect it, keep all data.
         return pd.Timestamp(r.index[0])
 
     return pd.Timestamp(ok.idxmax())
@@ -93,7 +93,6 @@ def _annualized_moments_from_returns(
 
     mean_p = float(np.mean(x))
     std_p = float(np.std(x, ddof=0))
-    # pandas-style moment definitions on 1d array
     xc = x - mean_p
     m2 = float(np.mean(xc**2))
     m3 = float(np.mean(xc**3))
@@ -166,7 +165,6 @@ def main() -> None:
     us_r = hist_df["us_tri"].pct_change().dropna()
     xus_r = hist_df["xus_tri"].pct_change().dropna()
 
-    # Drop the early monthly-filled segment (mostly-zero daily returns)
     us_start = _detect_true_daily_start(us_r)
     xus_start = _detect_true_daily_start(xus_r)
     real_start = max(us_start, xus_start)
@@ -177,8 +175,6 @@ def main() -> None:
         us_r = us_r.loc[us_r != 0.0]
         xus_r = xus_r.loc[xus_r != 0.0]
 
-    # Fixed histogram bounds (requested): show the central +/- 3% range.
-    # Returns outside this range are DROPPED from the histogram/KDE.
     plot_lo, plot_hi = -0.03, 0.03
     bins = np.linspace(plot_lo, plot_hi, int(args.bins) + 1)
 
@@ -186,7 +182,6 @@ def main() -> None:
     us_r_plot = us_r.loc[(us_r >= plot_lo) & (us_r <= plot_hi)]
     xus_r_plot = xus_r.loc[(xus_r >= plot_lo) & (xus_r <= plot_hi)]
 
-    # Annualized returns for legend labels (computed on log1p returns).
     sim_ppy = 240
     hist_ppy = 252
     sim_mean_ann = _annualized_moments_from_returns(sim_r, periods_per_year=sim_ppy, use_log_returns=True)["mean_ann"]
@@ -196,13 +191,12 @@ def main() -> None:
     us_ann_ret = float(np.expm1(us_mean_ann))
     xus_ann_ret = float(np.expm1(xus_mean_ann))
 
-    # --- plot ---
     try:
         import matplotlib.pyplot as plt
     except ModuleNotFoundError as e:
         raise SystemExit(
             "matplotlib is required for this script. Install it or run with an environment that has it.\n"
-            "For example (if you have it): C:/Users/vragu/anaconda3/envs/bubbles_vh/python.exe tests/plot_return_histograms.py"
+            "For example (if you have it): C:/Users/vragu/anaconda3/envs/bubbles_vh/python.exe src/plot_return_histograms.py"
         ) from e
 
     from matplotlib.ticker import FuncFormatter
@@ -214,7 +208,6 @@ def main() -> None:
         r, g, b = mcolors.to_rgb(color)
         return (r * factor, g * factor, b * factor)
 
-    # Consistent colors for bars + darker lines
     c_sim = "tab:blue"
     c_us = "tab:orange"
     c_xus = "tab:green"
@@ -223,7 +216,6 @@ def main() -> None:
     ls_us = "--"
     ls_xus = ":"
 
-    # Print-friendly font sizes (aimed at small journal figure sizes).
     title_fs = 18
     label_fs = 16
     tick_fs = 13
@@ -235,7 +227,6 @@ def main() -> None:
     plt.hist(xus_r_plot, bins=bins, density=True, alpha=0.45, color=c_xus, label="_nolegend_")
 
     if args.kde:
-        # KDE can be expensive on very large arrays; subsample deterministically.
         def _kde_values(data: pd.Series, x_grid: np.ndarray) -> np.ndarray:
             arr = np.asarray(data.dropna().to_numpy(dtype=float))
             arr = arr[np.isfinite(arr)]
@@ -247,7 +238,6 @@ def main() -> None:
                 rng = np.random.RandomState(0)
                 arr = rng.choice(arr, size=max_n, replace=False)
 
-            # Prefer scipy if available; otherwise use a simple Gaussian KDE.
             try:
                 from scipy.stats import gaussian_kde  # type: ignore
 
@@ -265,7 +255,6 @@ def main() -> None:
 
                 inv = 1.0 / (n * h * np.sqrt(2 * np.pi))
                 z = (x_grid[:, None] - arr[None, :]) / h
-                # Chunk to avoid huge temporaries
                 out = np.empty(x_grid.shape[0], dtype=float)
                 step = 200
                 for i0 in range(0, z.shape[0], step):
@@ -308,7 +297,6 @@ def main() -> None:
     plt.xlabel("Daily Return (simple)", fontsize=label_fs)
     plt.ylabel("Density", fontsize=label_fs)
 
-    # Legend: show annualized return labels, with handles matching what's plotted.
     if args.kde:
         handles = [
             Line2D([0], [0], color=darken(c_sim), linestyle=ls_sim, linewidth=2.5),
@@ -321,6 +309,7 @@ def main() -> None:
             Patch(facecolor=c_us, edgecolor="none", alpha=0.45),
             Patch(facecolor=c_xus, edgecolor="none", alpha=0.45),
         ]
+
     labels = [
         f"Simulation (ann. ret. = {sim_ann_ret * 100:.1f}%)",
         f"US (ann. ret. = {us_ann_ret * 100:.1f}%)",
@@ -330,8 +319,6 @@ def main() -> None:
     plt.grid(True, alpha=0.2)
 
     ax.tick_params(axis="both", which="major", labelsize=tick_fs)
-
-    # x-axis tick labels as percents
     plt.gca().xaxis.set_major_formatter(FuncFormatter(lambda x, _pos: f"{x * 100:.1f}%"))
     plt.xlim(plot_lo, plot_hi)
 
@@ -339,7 +326,6 @@ def main() -> None:
     plt.savefig(out_path, dpi=160)
     plt.close()
 
-    # --- stats ---
     stats = pd.DataFrame(
         [
             _moments_row("sim_tr_return", sim_r, periods_per_year=sim_ppy),
