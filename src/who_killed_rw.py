@@ -137,8 +137,10 @@ class IssuanceParams:
 class GridParams:
     max_price_move: float | None = None  # computed if None
     max_grid_move: float | None = None  # computed if None
-    step_size: float = 0.01
+    dense_limit: float = 0.05
     anticip_step_size: float = 0.02
+    dense_step: float = 0.01
+    step_size: float = 0.01
 
     def resolve(self, periods_per_year: int) -> GridParams:
         """Return a copy with max_price_move and max_grid_move filled in."""
@@ -150,11 +152,49 @@ class GridParams:
         mgm = min(24 * mpm, 0.98)
         return replace(self, max_price_move=mpm, max_grid_move=mgm)
 
+    def build_price_grid(self) -> np.ndarray:
+        """Build a price search grid that's dense near 0 and sparse at extremes.
+
+        Dense region: uniform steps of dense_step within [-dense_limit, +dense_limit].
+        Sparse region: each step doubles in size beyond the dense zone.
+        """
+        if self.max_grid_move is None:
+            raise ValueError("GridParams.max_grid_move is None; call resolve(...) first")
+
+        grid: list[float] = []
+
+        # Dense region (symmetric around 0)
+        pct = -float(self.dense_limit)
+        while pct <= float(self.dense_limit) + 1e-10:
+            grid.append(float(pct))
+            pct += float(self.dense_step)
+
+        # Sparse region: positive side (doubling step sizes)
+        step = float(self.dense_step) * 2.0
+        pct = float(self.dense_limit) + step
+        while pct <= float(self.max_grid_move):
+            grid.append(float(pct))
+            step *= 2.0
+            pct += step
+        grid.append(float(self.max_grid_move))  # always include the boundary
+
+        # Sparse region: negative side (doubling step sizes)
+        step = float(self.dense_step) * 2.0
+        pct = -float(self.dense_limit) - step
+        while pct >= -float(self.max_grid_move):
+            grid.append(float(pct))
+            step *= 2.0
+            pct -= step
+        grid.append(-float(self.max_grid_move))  # always include the boundary
+
+        grid = sorted(set(grid))  # deduplicate and sort
+        return np.array(grid, dtype=float)
+
 
 @dataclass(frozen=True)
 class AnticipParams:
-    baseline: float = 0.6
-    risk_aversion: float = 2.0
+    baseline: float = 0.5
+    risk_aversion: float = 3.0
     initial_wealth: float = 1.0
 
 
@@ -172,7 +212,8 @@ class SimulationParams:
     inout_vol: float = 0.06
     short_max: float = 0.0
     lev_max: float = 1.0
-    include_anticip: bool = True
+    min_wealth: float = 0.00001
+    include_anticip: bool = False
 
     fractions: InvestorFractions = field(default_factory=InvestorFractions)
     real_rate: RealRateParams = field(default_factory=RealRateParams)
@@ -657,9 +698,10 @@ def investor_demands(
     valmo_lb = params.valmo.lookback_periods(ppy)
     if t >= valmo_lb:
         lookback_tr = market.tr_price[t - valmo_lb]
-        tr_change = trial_tr_prices - lookback_tr
+        # CHANGED: use annualized return vs init_earnings_yield (same as momentum)
+        return_pa = (trial_tr_prices / lookback_tr) ** (ppy / valmo_lb) - 1
         momentum_frac = np.where(
-            tr_change > 0,
+            return_pa > params.init_earnings_yield,
             params.valmo.momentum_weight * params.valmo.baseline,
             -params.valmo.momentum_weight * params.valmo.baseline,
         )
@@ -901,9 +943,10 @@ def anticip_forecast_clearing_price(
     valmo_lb = params.valmo.lookback_periods(ppy)
     if t + 1 >= valmo_lb:
         lookback_tr = market.tr_price[(t + 1) - valmo_lb]
-        tr_change = trial_tr_prices - lookback_tr
+        # CHANGED: use annualized return vs init_earnings_yield (same as momentum)
+        ret_pa_valmo = (trial_tr_prices / lookback_tr) ** (ppy / valmo_lb) - 1
         momentum_frac = np.where(
-            tr_change > 0,
+            ret_pa_valmo > params.init_earnings_yield,
             params.valmo.momentum_weight * params.valmo.baseline,
             -params.valmo.momentum_weight * params.valmo.baseline,
         )
@@ -1081,7 +1124,10 @@ def step(
     for name in CORE_INVESTORS:
         inv = investors[name]
         inv.shares[t] = result.demands[name] * scale
-        inv.wealth[t] = ptw[name] + inv.shares[t - 1] * delta_price
+        inv.wealth[t] = max(
+            params.min_wealth,
+            ptw[name] + inv.shares[t - 1] * delta_price,
+        )
 
     # --- Anticip investor (exogenous observer, trades after clearing) ---
     if params.include_anticip and "anticip" in investors:
@@ -1144,15 +1190,9 @@ def run_simulation(
     shocks = generate_random_numbers(params, seed=seed)
     market, investors = initialize(params)
 
-    # Pre-compute grid and trial-price arrays once for the entire simulation
     grid = params.resolved_grid()
-    pcts = np.arange(
-        -grid.max_grid_move, grid.max_grid_move + grid.step_size / 2, grid.step_size
-    )
-    anticip_pcts = (
-        np.arange(-grid.max_grid_move, grid.max_grid_move + 0.01, grid.anticip_step_size)
-        if params.include_anticip else None
-    )
+    pcts = grid.build_price_grid()
+    anticip_pcts = (grid.build_price_grid() if params.include_anticip else None)
 
     for t in range(1, params.n_periods + 1):
         step(t, params, market, investors, shocks, grid, pcts, anticip_pcts)
