@@ -1,11 +1,11 @@
-# Bubbles Backtest (focus: daily ELM backtest + return histograms)
+# Bubbles Backtest (daily ELM backtest + return histograms)
 
 This repo’s **primary deliverables** are:
 
 1) A simplified daily “ELM-style” allocation backtest: `src/backtest_elm.py`
 2) A script to plot simulated-vs-real daily return histograms (with optional KDE overlays): `tests/plot_return_histograms.py`
 
-Everything else in the repository should be treated as **drafts/supporting material** unless explicitly referenced below.
+Everything else in the repository should be considered as **drafts/supporting material**.
 
 ## 1) Run the daily ELM backtest (`src/backtest_elm.py`)
 
@@ -81,11 +81,6 @@ This also writes distribution-moment stats to `results/return_distribution_stats
 ## Appendix (supporting scripts)
 
 Other scripts include the paper’s reference simulation (`src/who_killed_rw.py`), a monthly historical backtest draft (`src/backtest_investors.py`), data-processing utilities (e.g., `src/load_shiller_data.py`, `src/download_rf_rate.py`), and helper plotting scripts (e.g., `tests/plot_tri_comparison.py`). These are useful for validation and experimentation but are not the main “run this first” entry points.
-
-**Impact on results:**
-- Lagged earnings produces more realistic (slightly lower) returns than using contemporaneous earnings
-- The default 1-month lag represents typical earnings reporting delays
-- You can disable this with `use_lagged_earnings=False` to see the difference
 
 ## Results Interpretation
 
