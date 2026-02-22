@@ -80,7 +80,7 @@ Notes:
 
 - The plotted variable is the daily total **log return** `log(1+r)`.
 - This also writes distribution-moment stats to `results/return_distribution_stats.csv` (computed on `log(1+r)` increments).
-- Optional: add `--tails-to-edge` to clip out-of-range observations into the edge histogram bins (instead of dropping them).
+- By default, out-of-range observations are clipped into the edge histogram bins; use `--drop-tails` to drop them instead.
 
 ## Appendix (supporting scripts)
 

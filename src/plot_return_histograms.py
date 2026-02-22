@@ -145,12 +145,20 @@ def main() -> None:
         action="store_true",
         help="Overlay a fitted density line (KDE) on top of each histogram",
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--drop-tails",
+        action="store_true",
+        help=(
+            "Drop returns outside the plotted x-axis range (default behavior is to clip them into "
+            "the edge histogram bins)"
+        ),
+    )
+    group.add_argument(
         "--tails-to-edge",
         action="store_true",
         help=(
-            "Instead of dropping returns outside the plotted x-axis range, clip them to the "
-            "nearest boundary so they are counted in the edge histogram bins"
+            "Clip returns outside the plotted x-axis range into the edge histogram bins (this is now the default)"
         ),
     )
     args = parser.parse_args()
@@ -187,7 +195,8 @@ def main() -> None:
     plot_lo, plot_hi = float(np.log1p(plot_simple_lo)), float(np.log1p(plot_simple_hi))
     bins = np.linspace(plot_lo, plot_hi, int(args.bins) + 1)
 
-    if args.tails_to_edge:
+    tails_to_edge = not bool(args.drop_tails)
+    if tails_to_edge:
         # Clip in simple-return space, then transform to log(1+r) for plotting.
         # This assigns all out-of-range observations to the edge histogram bins.
         sim_r_plot = pd.Series(np.clip(sim_r.to_numpy(dtype=float), plot_simple_lo, plot_simple_hi))
