@@ -68,14 +68,15 @@ def _annualized_moments_from_returns(
     periods_per_year: int,
     use_log_returns: bool = True,
 ) -> dict[str, float]:
-    """Compute annualized mean/std/skew/kurtosis for a return series.
+    """Compute distribution moments for a return series.
 
     Implementation notes
     --------------------
     - We compute moments on (log) period returns.
     - Mean and stdev are annualized via: mean * ppy, std * sqrt(ppy).
-    - Skew and excess kurtosis are scaled assuming aggregation of iid increments:
-      skew_ann = skew / sqrt(ppy), ex_kurt_ann = ex_kurt / ppy.
+    - Skew and excess kurtosis are reported *per-period* (not annualized),
+      because annualizing drives them toward 0 / normal and masks the actual
+      shape of the daily distribution.
     """
     r = simple_returns.dropna().astype(float)
     r = r[np.isfinite(r)]
@@ -84,8 +85,8 @@ def _annualized_moments_from_returns(
             "n": 0,
             "mean_ann": float("nan"),
             "std_ann": float("nan"),
-            "skew_ann": float("nan"),
-            "kurtosis_ann": float("nan"),
+            "skew": float("nan"),
+            "ex_kurtosis": float("nan"),
         }
 
     x = np.log1p(r.to_numpy()) if use_log_returns else r.to_numpy()
@@ -101,14 +102,12 @@ def _annualized_moments_from_returns(
     ppy = float(periods_per_year)
     ex_kurt = float(m4 / (m2**2) - 3.0) if m2 > 0 else float("nan")
 
-    ex_kurt_ann = ex_kurt / ppy if np.isfinite(ex_kurt) else float("nan")
-    kurtosis_ann = ex_kurt_ann + 3.0 if np.isfinite(ex_kurt_ann) else float("nan")
     return {
         "n": int(x.size),
         "mean_ann": mean_p * ppy,
         "std_ann": std_p * np.sqrt(ppy),
-        "skew_ann": skew / np.sqrt(ppy) if np.isfinite(skew) else float("nan"),
-        "kurtosis_ann": kurtosis_ann,
+        "skew": skew,
+        "ex_kurtosis": ex_kurt,
     }
 
 
@@ -126,7 +125,7 @@ def main() -> None:
     parser.add_argument(
         "--stats-out",
         default=str(Path("results") / "return_distribution_stats.csv"),
-        help="Output CSV for annualized distribution moments",
+        help="Output CSV for distribution moments",
     )
     parser.add_argument("--bins", type=int, default=160, help="Number of histogram bins")
     parser.add_argument(
@@ -379,7 +378,8 @@ def main() -> None:
         print("\nNominal-return start date used (hist_df):", real_start.date())
         print("Histogram saved to:", out_path)
         print("Stats saved to:", stats_out)
-        print("\nAnnualized distribution moments (computed on log1p returns):")
+        print("\nDistribution moments of daily log returns, log(1+r)")
+        print("  Mean and Std annualized; Skew and Excess Kurtosis of daily returns.")
         print(stats)
 
 
