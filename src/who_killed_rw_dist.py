@@ -80,6 +80,12 @@ def main() -> None:
         default=str(Path("results") / "rw_daily_tr_returns.csv"),
         help="Output CSV path",
     )
+    parser.add_argument(
+        "--max-move",
+        type=float,
+        default=0.15,
+        help="Max per-period price move (default 0.15 = 15%%)",
+    )
     args = parser.parse_args()
 
     if args.n_sims <= 0:
@@ -87,14 +93,17 @@ def main() -> None:
 
     base_seed = None if args.base_seed == -1 else int(args.base_seed)
 
-    params = SimulationParams()  # same defaults as who_killed_rw.py
+    mpm = float(args.max_move)
+    mgm = min(24 * mpm, 0.98)
+    params = SimulationParams().with_grid(max_price_move=mpm, max_grid_move=mgm)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(
         f"Running {args.n_sims} simulations "
-        f"(ppy={params.periods_per_year}, years={params.years}) → {out_path}"
+        f"(ppy={params.periods_per_year}, years={params.years}, "
+        f"max_move={mpm:.0%}) → {out_path}"
     )
 
     df = simulate_daily_tr_returns(params=params, n_sims=args.n_sims, base_seed=base_seed)

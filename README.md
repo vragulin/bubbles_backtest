@@ -65,7 +65,11 @@ Generate `results/rw_daily_tr_returns.csv`:
 ```bash
 python src/who_killed_rw_dist.py --n-sims 50 --out results/rw_daily_tr_returns.csv
 ```
+Optional: use `--max-move` to set the maximum per-period price move (default 15%):
 
+```bash
+python src/who_killed_rw_dist.py --n-sims 50 --max-move 0.10 --out results/rw_daily_tr_returns.csv
+```
 ### Step B — plot histograms + KDE
 
 ```bash
