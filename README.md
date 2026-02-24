@@ -80,6 +80,12 @@ python src/plot_return_histograms.py \
   --kde
 ```
 
+Optional: use `--xlim` to set the symmetric x-axis range in simple-return space (default ±5%):
+
+```bash
+python src/plot_return_histograms.py --xlim 0.15 --kde
+```
+
 Notes:
 
 - The plotted variable is the daily total **log return** `log(1+r)`.
@@ -88,7 +94,7 @@ Notes:
 
 ## Appendix (supporting scripts)
 
-Other scripts include the paper’s reference simulation (`src/who_killed_rw.py`), a monthly historical backtest draft (`src/backtest_investors.py`), data-processing utilities (e.g., `src/load_shiller_data.py`, `src/download_rf_rate.py`), and helper plotting scripts (e.g., `tests/plot_tri_comparison.py`). These are useful for validation and experimentation but are not the main “run this first” entry points.
+Other scripts include the paper's reference simulation (`src/who_killed_rw.py`, default max price move ±15%), a monthly historical backtest draft (`src/backtest_investors.py`), data-processing utilities (e.g., `src/load_shiller_data.py`, `src/download_rf_rate.py`), and helper plotting scripts (e.g., `tests/plot_tri_comparison.py`). These are useful for validation and experimentation but are not the main "run this first" entry points.
 
 ## Results Interpretation
 

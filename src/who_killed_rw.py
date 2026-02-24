@@ -1760,7 +1760,7 @@ def _run_default_monte_carlo() -> None:
     Kept behind an `if __name__ == '__main__'` guard so this module is safe to
     import from other scripts.
     """
-    mc_params = SimulationParams()
+    mc_params = SimulationParams().with_grid(max_price_move=0.15, max_grid_move=0.98)
     avg_stats, all_stats, all_results = run_monte_carlo(mc_params, n_sims=50, base_seed=42)
 
     # Use the investors dict from the first sim for column detection (anticip presence)

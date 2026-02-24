@@ -160,6 +160,12 @@ def main() -> None:
             "Clip returns outside the plotted x-axis range into the edge histogram bins (this is now the default)"
         ),
     )
+    parser.add_argument(
+        "--xlim",
+        type=float,
+        default=0.05,
+        help="Symmetric x-axis limit in simple-return space (default 0.05 = ±5%%). Use 0.15 for ±15%%.",
+    )
     args = parser.parse_args()
 
     sim_path = Path(args.sim)
@@ -190,7 +196,7 @@ def main() -> None:
         us_r = us_r.loc[us_r != 0.0]
         xus_r = xus_r.loc[xus_r != 0.0]
 
-    plot_simple_lo, plot_simple_hi = -0.05, 0.05
+    plot_simple_lo, plot_simple_hi = -abs(args.xlim), abs(args.xlim)
     plot_lo, plot_hi = float(np.log1p(plot_simple_lo)), float(np.log1p(plot_simple_hi))
     bins = np.linspace(plot_lo, plot_hi, int(args.bins) + 1)
 
