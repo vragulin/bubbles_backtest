@@ -67,7 +67,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Export per-period (daily) total-return distribution from who_killed_rw simulation"
     )
-    parser.add_argument("--n-sims", type=int, default=200, help="Number of simulations to run")
+    parser.add_argument("--n-sims", type=int, default=50, help="Number of simulations to run")
     parser.add_argument(
         "--base-seed",
         type=int,
