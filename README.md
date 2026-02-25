@@ -90,6 +90,7 @@ Notes:
 
 - The plotted variable is the daily total **log return** `log(1+r)`.
 - This also writes distribution-moment stats to `results/return_distribution_stats.csv` (computed on `log(1+r)` increments).
+- A tail-event table (`results/return_tail_events.csv`) counts days where `|log(1+r)| > kσ` for k = 4, 5, 6, both raw and normalised to the shortest sample.
 - By default, out-of-range observations are clipped into the edge histogram bins; use `--drop-tails` to drop them instead.
 
 ## Appendix (supporting scripts)

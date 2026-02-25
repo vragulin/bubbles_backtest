@@ -117,6 +117,65 @@ def _moments_row(name: str, r: pd.Series, periods_per_year: int) -> pd.Series:
     return pd.Series(out, name=name)
 
 
+def _tail_event_table(
+    series_dict: dict[str, pd.Series],
+    sigmas: tuple[int, ...] = (4, 5, 6),
+) -> pd.DataFrame:
+    """Build a table of tail-event counts for each series.
+
+    For each series and each sigma threshold *k*, count the number of
+    observations where ``|log(1+r)| > k * std``.  Results are reported both
+    as raw counts and as a percentage of the total sample size.  All series
+    are also normalised to the *shortest* sample so that counts are
+    comparable across distributions.
+
+    Returns a DataFrame indexed by series name with columns:
+        n, n_norm, {k}σ_count, {k}σ_pct, {k}σ_count_norm, {k}σ_pct_norm
+    """
+    # Compute per-series stats
+    records: list[dict] = []
+    raw_counts: dict[str, dict[int, int]] = {}
+    lengths: dict[str, int] = {}
+
+    for name, r in series_dict.items():
+        x = np.log1p(r.dropna().to_numpy(dtype=float))
+        x = x[np.isfinite(x)]
+        n = x.size
+        lengths[name] = n
+        std = float(np.std(x, ddof=0))
+        rec: dict = {"n": n}
+        raw_counts[name] = {}
+        for k in sigmas:
+            threshold = k * std
+            cnt = int(np.sum(np.abs(x) > threshold))
+            pct = 100.0 * cnt / n if n > 0 else float("nan")
+            rec[f"{k}σ_count"] = cnt
+            rec[f"{k}σ_pct"] = pct
+            raw_counts[name][k] = cnt
+        records.append(pd.Series(rec, name=name))
+
+    # Normalise to the shortest sample
+    min_n = min(lengths.values()) if lengths else 1
+    for rec_s, (name, n) in zip(records, lengths.items()):
+        scale = min_n / n if n > 0 else 0.0
+        rec_s["n_norm"] = min_n
+        for k in sigmas:
+            cnt_norm = raw_counts[name][k] * scale
+            pct_norm = 100.0 * cnt_norm / min_n if min_n > 0 else float("nan")
+            rec_s[f"{k}σ_count_norm"] = round(cnt_norm, 1)
+            rec_s[f"{k}σ_pct_norm"] = pct_norm
+
+    # Build DataFrame with a stable column order
+    col_order = ["n"]
+    for k in sigmas:
+        col_order += [f"{k}σ_count", f"{k}σ_pct"]
+    col_order += ["n_norm"]
+    for k in sigmas:
+        col_order += [f"{k}σ_count_norm", f"{k}σ_pct_norm"]
+
+    return pd.DataFrame(records)[col_order]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot simulated vs real daily return histograms")
     parser.add_argument("--sim", default=str(Path("results") / "rw_daily_tr_returns.csv"), help="Simulation CSV path")
@@ -387,6 +446,23 @@ def main() -> None:
         print("\nDistribution moments of daily log returns, log(1+r)")
         print("  Mean and Std annualized; Skew and Excess Kurtosis of daily returns.")
         print(stats)
+
+    # --- Tail-event table --------------------------------------------------
+    tail_tbl = _tail_event_table(
+        {"sim_tr_return": sim_r, "us_tr_return": us_r, "xus_tr_return": xus_r}
+    )
+    tail_out = Path(stats_out).with_name("return_tail_events.csv")
+    tail_tbl.to_csv(tail_out, index=True)
+
+    with pd.option_context(
+        "display.width", 200,
+        "display.max_columns", None,
+        "display.float_format", "{:.4f}".format,
+    ):
+        print("\nTail events: days where |log(1+r)| > kσ")
+        print("  Raw counts, % of own sample, and counts/pct normalised to shortest sample.")
+        print(f"  Tail events table saved to: {tail_out}")
+        print(tail_tbl)
 
 
 if __name__ == "__main__":
