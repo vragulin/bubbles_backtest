@@ -95,6 +95,23 @@ Notes:
 
 ## Appendix (supporting scripts)
 
+### Shock-vs-price attribution analysis (`src/shock_vs_price_analysis.py`)
+
+Investigates whether large simulated price moves are driven by large exogenous shocks (earnings, interest rates, investor flows) or emerge from fragile equilibria among heterogeneous investors. Runs N Monte Carlo simulations, pools all observations, and produces three analyses for daily / weekly / monthly horizons:
+
+- **Option A** — Conditional-mean table: average shock size within quantile bins (down to 0.01% tails) of price return.
+- **Option B** — OLS regression of price return on the 5 shock variables (Δ log earnings, Δ real rate, cashflow / static / extrap flow shocks), with tail-vs-middle R² comparison and kurtosis diagnostics.
+- **Option C** — Scatter plots of ΔP vs each shock, with 0.01% tail observations highlighted.
+
+```bash
+cd src
+python shock_vs_price_analysis.py --n-sims 50
+```
+
+Output goes to `results/big_p_moves/`. Default max per-period price move is 20%.
+
+### Other supporting scripts
+
 Other scripts include the paper's reference simulation (`src/who_killed_rw.py`, default max price move ±15%), a monthly historical backtest draft (`src/backtest_investors.py`), data-processing utilities (e.g., `src/load_shiller_data.py`, `src/download_rf_rate.py`), and helper plotting scripts (e.g., `tests/plot_tri_comparison.py`). These are useful for validation and experimentation but are not the main "run this first" entry points.
 
 ## Results Interpretation
