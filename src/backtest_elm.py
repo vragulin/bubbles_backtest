@@ -158,7 +158,7 @@ class InvestorConfig:
     momentum_weight: float = 0.0
     rp_max: float = 0.0
 
-    extrap_weights: tuple = (0.30, 0.25, 0.20, 0.15, 0.10)
+    extrap_weights: tuple = (0.33, 0.25, 0.18, 0.14, 0.10)
     extrap_center: float = 0.04
     extrap_max_dev: float = 0.03
     extrap_squeeze: float = 0.1
